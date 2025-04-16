@@ -3,224 +3,1867 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Drawing Path Recorder</title>
+    <title>Path Extractor</title>
     <style>
       body {
-        font-family: Arial, sans-serif;
-        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
         padding: 20px;
+        background-color: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+        border-bottom: 2px solid #ddd;
+        padding-bottom: 10px;
+      }
+      .container {
         display: flex;
         flex-direction: column;
-        align-items: center;
+        gap: 20px;
       }
-
-      h1 {
+      .upload-section {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .canvas-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+      }
+      canvas {
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: white;
+      }
+      .debug-section {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .controls {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .control-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input[type="file"] {
+        display: block;
         margin-bottom: 10px;
       }
-
-      .canvas-container {
-        position: relative;
-        margin: 20px 0;
-        border: 2px solid #333;
-      }
-
-      canvas {
-        display: block;
-        background-color: #f8f8f8;
-        cursor: crosshair;
-      }
-
-      .controls {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-      }
-
       button {
-        padding: 8px 16px;
-        background-color: #4285f4;
+        background-color: #4caf50;
         color: white;
         border: none;
+        padding: 10px 15px;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 16px;
+        transition: background-color 0.3s;
       }
-
       button:hover {
-        background-color: #3367d6;
+        background-color: #45a049;
       }
-
-      button:disabled {
-        background-color: #cccccc;
-        cursor: not-allowed;
+      .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
       }
-
-      .status {
-        font-size: 14px;
-        color: #666;
-        margin-top: 10px;
+      .slider-value {
+        min-width: 40px;
+        text-align: right;
+      }
+      .tab-buttons {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+      }
+      .tab-button {
+        background-color: #ddd;
+        color: #333;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px 4px 0 0;
+        cursor: pointer;
+      }
+      .tab-button.active {
+        background-color: #4caf50;
+        color: white;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .output-section {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      pre {
+        background-color: #f8f8f8;
+        padding: 10px;
+        border-radius: 4px;
+        overflow: auto;
+        max-height: 300px;
+      }
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        display: none;
+      }
+      .loading-spinner {
+        border: 8px solid #f3f3f3;
+        border-top: 8px solid #4caf50;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
       }
     </style>
   </head>
   <body>
-    <h1>Drawing Path Recorder</h1>
-
-    <div class="controls">
-      <button id="startBtn">Start Drawing</button>
-      <button id="clearBtn">Clear Canvas</button>
-      <button id="getPathBtn">Get Path Coordinates</button>
+    <div class="loading-overlay">
+      <div class="loading-spinner"></div>
     </div>
 
-    <div class="canvas-container">
-      <canvas id="drawingCanvas" width="600" height="400"></canvas>
-    </div>
+    <h1>Path Extractor</h1>
 
-    <div class="status" id="status">
-      Ready to draw. Click "Start Drawing" to begin.
+    <div class="container">
+      <div class="upload-section">
+        <h2>Upload Image</h2>
+        <input type="file" id="imageUpload" accept="image/*" />
+        <button id="processButton">Process Image</button>
+      </div>
+
+      <div class="controls">
+        <h2>Processing Parameters</h2>
+
+        <div class="tab-buttons">
+          <button class="tab-button active" data-tab="preprocessing">
+            Preprocessing
+          </button>
+          <button class="tab-button" data-tab="path">Path Extraction</button>
+          <button class="tab-button" data-tab="animation">Animation</button>
+        </div>
+
+        <div class="tab-content active" id="preprocessing-tab">
+          <div class="control-group">
+            <label for="thresholdValue">Threshold Value</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="thresholdValue"
+                min="0"
+                max="255"
+                value="128"
+                class="slider"
+              />
+              <span class="slider-value" id="thresholdValueDisplay">128</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="blurAmount">Blur Amount</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="blurAmount"
+                min="0"
+                max="20"
+                value="2"
+                class="slider"
+              />
+              <span class="slider-value" id="blurAmountDisplay">2</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="noiseReduction">Noise Reduction</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="noiseReduction"
+                min="0"
+                max="10"
+                value="3"
+                class="slider"
+              />
+              <span class="slider-value" id="noiseReductionDisplay">3</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="path-tab">
+          <div class="control-group">
+            <label for="strokeWidth">Stroke Thinning</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="strokeWidth"
+                min="1"
+                max="10"
+                value="1"
+                class="slider"
+              />
+              <span class="slider-value" id="strokeWidthDisplay">1</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="pathSmoothing">Path Smoothing</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="pathSmoothing"
+                min="0"
+                max="10"
+                value="2"
+                class="slider"
+              />
+              <span class="slider-value" id="pathSmoothingDisplay">2</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="gapFilling">Gap Filling Distance</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="gapFilling"
+                min="0"
+                max="50"
+                value="10"
+                class="slider"
+              />
+              <span class="slider-value" id="gapFillingDisplay">10</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="animation-tab">
+          <div class="control-group">
+            <label for="drawDuration">Drawing Duration (seconds)</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="drawDuration"
+                min="1"
+                max="10"
+                value="4"
+                class="slider"
+              />
+              <span class="slider-value" id="drawDurationDisplay">4</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="curvatureEffect">Curvature Speed Effect</label>
+            <div class="slider-container">
+              <input
+                type="range"
+                id="curvatureEffect"
+                min="0"
+                max="10"
+                value="5"
+                class="slider"
+              />
+              <span class="slider-value" id="curvatureEffectDisplay">5</span>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <button id="animateButton" disabled>Animate Drawing</button>
+            <button id="resetAnimationButton" disabled>Reset Animation</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <div>
+          <h3>Original Image</h3>
+          <canvas id="originalCanvas"></canvas>
+        </div>
+        <div>
+          <h3>Processed Image</h3>
+          <canvas id="processedCanvas"></canvas>
+        </div>
+        <div>
+          <h3>Path Extraction</h3>
+          <canvas id="pathCanvas"></canvas>
+        </div>
+        <div>
+          <h3>Animation Preview</h3>
+          <canvas id="animationCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="debug-section">
+        <h2>Debug Information</h2>
+        <div id="debugInfo"></div>
+      </div>
+
+      <div class="output-section">
+        <h2>Extracted Path Data</h2>
+        <button id="copyDataButton" disabled>Copy Coordinates</button>
+        <button id="downloadSvgButton" disabled>Download as SVG</button>
+        <pre id="coordinatesOutput">
+Upload and process an image to extract coordinates.</pre
+        >
+      </div>
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const canvas = document.getElementById("drawingCanvas");
-        const ctx = canvas.getContext("2d");
-        const startBtn = document.getElementById("startBtn");
-        const clearBtn = document.getElementById("clearBtn");
-        const getPathBtn = document.getElementById("getPathBtn");
-        const statusElem = document.getElementById("status");
+      // Global variables
+      let originalImage = null;
+      let processedImageData = null;
+      let pathPoints = [];
+      let sampledPoints = [];
+      let animationFrameId = null;
+      let isProcessing = false;
 
-        let isDrawing = false;
-        let isRecording = false;
-        let pathCoordinates = [];
+      // Get DOM elements
+      const imageUpload = document.getElementById("imageUpload");
+      const processButton = document.getElementById("processButton");
+      const originalCanvas = document.getElementById("originalCanvas");
+      const processedCanvas = document.getElementById("processedCanvas");
+      const pathCanvas = document.getElementById("pathCanvas");
+      const animationCanvas = document.getElementById("animationCanvas");
+      const debugInfo = document.getElementById("debugInfo");
+      const coordinatesOutput = document.getElementById("coordinatesOutput");
+      const animateButton = document.getElementById("animateButton");
+      const resetAnimationButton = document.getElementById(
+        "resetAnimationButton"
+      );
+      const copyDataButton = document.getElementById("copyDataButton");
+      const downloadSvgButton = document.getElementById("downloadSvgButton");
+      const loadingOverlay = document.querySelector(".loading-overlay");
 
-        // Initialize canvas
-        ctx.lineWidth = 3;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.strokeStyle = "#000000";
+      // Canvas contexts
+      const originalCtx = originalCanvas.getContext("2d");
+      const processedCtx = processedCanvas.getContext("2d");
+      const pathCtx = pathCanvas.getContext("2d");
+      const animationCtx = animationCanvas.getContext("2d");
 
-        // Start drawing button
-        startBtn.addEventListener("click", function () {
-          if (!isRecording) {
-            isRecording = true;
-            pathCoordinates = [];
-            startBtn.textContent = "Stop Drawing";
-            statusElem.textContent = "Recording your drawing...";
-          } else {
-            isRecording = false;
-            startBtn.textContent = "Start Drawing";
-            statusElem.textContent = `Drawing completed! Recorded ${pathCoordinates.length} points.`;
-          }
+      // Tab functionality
+      const tabButtons = document.querySelectorAll(".tab-button");
+      const tabContents = document.querySelectorAll(".tab-content");
+
+      tabButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const tabId = button.getAttribute("data-tab");
+
+          tabButtons.forEach((btn) => btn.classList.remove("active"));
+          tabContents.forEach((content) => content.classList.remove("active"));
+
+          button.classList.add("active");
+          document.getElementById(`${tabId}-tab`).classList.add("active");
         });
-
-        // Clear canvas button
-        clearBtn.addEventListener("click", function () {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          pathCoordinates = [];
-          isRecording = false;
-          startBtn.textContent = "Start Drawing";
-          statusElem.textContent = "Canvas cleared. Ready to draw.";
-        });
-
-        // Get path coordinates button
-        getPathBtn.addEventListener("click", function () {
-          if (pathCoordinates.length > 0) {
-            const strData = JSON.stringify(pathCoordinates);
-            console.log(strData);
-            navigator.clipboard
-              .writeText(strData)
-              .then(() => {
-                console.log("Path coordinates copied to clipboard!");
-                statusElem.textContent = `Path coordinates copied to clipboard! Total points: ${pathCoordinates.length}`;
-              })
-              .catch((err) => {
-                console.error("Failed to copy: ", err);
-                statusElem.textContent = "Failed to copy path coordinates.";
-              });
-          } else {
-            statusElem.textContent = "No drawing recorded yet.";
-          }
-        });
-
-        // Mouse events for drawing
-        canvas.addEventListener("mousedown", startDrawing);
-        canvas.addEventListener("mousemove", draw);
-        canvas.addEventListener("mouseup", stopDrawing);
-        canvas.addEventListener("mouseout", stopDrawing);
-
-        // Touch events for mobile devices
-        canvas.addEventListener("touchstart", handleTouchStart);
-        canvas.addEventListener("touchmove", handleTouchMove);
-        canvas.addEventListener("touchend", handleTouchEnd);
-
-        function startDrawing(e) {
-          if (!isRecording) return;
-
-          isDrawing = true;
-          const pos = getPosition(e);
-
-          // Start a new path
-          ctx.beginPath();
-          ctx.moveTo(pos.x, pos.y);
-
-          // Record the starting position
-          pathCoordinates.push([Math.round(pos.x), Math.round(pos.y)]);
-        }
-
-        function draw(e) {
-          if (!isDrawing || !isRecording) return;
-
-          const pos = getPosition(e);
-
-          // Draw line to the new position
-          ctx.lineTo(pos.x, pos.y);
-          ctx.stroke();
-
-          // Record the position
-          pathCoordinates.push([Math.round(pos.x), Math.round(pos.y)]);
-        }
-
-        function stopDrawing() {
-          isDrawing = false;
-        }
-
-        function getPosition(e) {
-          const rect = canvas.getBoundingClientRect();
-          return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-          };
-        }
-
-        function handleTouchStart(e) {
-          e.preventDefault();
-          if (e.touches.length === 1) {
-            const touch = e.touches[0];
-            const mouseEvent = new MouseEvent("mousedown", {
-              clientX: touch.clientX,
-              clientY: touch.clientY,
-            });
-            canvas.dispatchEvent(mouseEvent);
-          }
-        }
-
-        function handleTouchMove(e) {
-          e.preventDefault();
-          if (e.touches.length === 1) {
-            const touch = e.touches[0];
-            const mouseEvent = new MouseEvent("mousemove", {
-              clientX: touch.clientX,
-              clientY: touch.clientY,
-            });
-            canvas.dispatchEvent(mouseEvent);
-          }
-        }
-
-        function handleTouchEnd(e) {
-          e.preventDefault();
-          const mouseEvent = new MouseEvent("mouseup");
-          canvas.dispatchEvent(mouseEvent);
-        }
       });
+
+      // Slider value display updates
+      const sliders = document.querySelectorAll(".slider");
+      sliders.forEach((slider) => {
+        const displayElement = document.getElementById(`${slider.id}Display`);
+        slider.addEventListener("input", () => {
+          displayElement.textContent = slider.value;
+        });
+      });
+
+      // Event listeners
+      imageUpload.addEventListener("change", handleImageUpload);
+      processButton.addEventListener("click", processImage);
+      animateButton.addEventListener("click", startAnimation);
+      resetAnimationButton.addEventListener("click", resetAnimation);
+      copyDataButton.addEventListener("click", copyCoordinates);
+      downloadSvgButton.addEventListener("click", downloadSvg);
+
+      // Parameter change events
+      const preprocessingControls = document.querySelectorAll(
+        "#preprocessing-tab .slider"
+      );
+      preprocessingControls.forEach((control) => {
+        control.addEventListener("change", () => {
+          if (originalImage) {
+            processImage();
+          }
+        });
+      });
+
+      const pathControls = document.querySelectorAll("#path-tab .slider");
+      pathControls.forEach((control) => {
+        control.addEventListener("change", () => {
+          if (processedImageData) {
+            extractPath();
+          }
+        });
+      });
+
+      const animationControls = document.querySelectorAll(
+        "#animation-tab .slider"
+      );
+      animationControls.forEach((control) => {
+        control.addEventListener("change", () => {
+          if (pathPoints.length > 0) {
+            samplePathPoints();
+          }
+        });
+      });
+
+      // Handle image upload
+      function handleImageUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          const img = new Image();
+          img.onload = function () {
+            originalImage = img;
+
+            // Resize canvas to match image dimensions
+            originalCanvas.width = img.width;
+            originalCanvas.height = img.height;
+            processedCanvas.width = img.width;
+            processedCanvas.height = img.height;
+            pathCanvas.width = img.width;
+            pathCanvas.height = img.height;
+            animationCanvas.width = img.width;
+            animationCanvas.height = img.height;
+
+            // Draw original image
+            originalCtx.clearRect(
+              0,
+              0,
+              originalCanvas.width,
+              originalCanvas.height
+            );
+            originalCtx.drawImage(img, 0, 0);
+
+            // Log debug info
+            addDebugInfo(`Image loaded: ${img.width}×${img.height} pixels`);
+
+            // Enable process button
+            processButton.disabled = false;
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Process the image
+      function processImage() {
+        if (!originalImage || isProcessing) return;
+
+        isProcessing = true;
+        loadingOverlay.style.display = "flex";
+
+        // Clear previous results
+        pathPoints = [];
+        sampledPoints = [];
+        resetAnimation();
+
+        // Get processing parameters
+        const thresholdValue = parseInt(
+          document.getElementById("thresholdValue").value
+        );
+        const blurAmount = parseInt(
+          document.getElementById("blurAmount").value
+        );
+        const noiseReduction = parseInt(
+          document.getElementById("noiseReduction").value
+        );
+
+        addDebugInfo(
+          `Processing image with threshold=${thresholdValue}, blur=${blurAmount}, noise reduction=${noiseReduction}`
+        );
+
+        // Use setTimeout to allow the UI to update before starting heavy processing
+        setTimeout(() => {
+          // Get original image data
+          originalCtx.clearRect(
+            0,
+            0,
+            originalCanvas.width,
+            originalCanvas.height
+          );
+          originalCtx.drawImage(originalImage, 0, 0);
+          const imageData = originalCtx.getImageData(
+            0,
+            0,
+            originalCanvas.width,
+            originalCanvas.height
+          );
+
+          // Process the image (convert to grayscale, apply blur, threshold)
+          processedImageData = processImageData(
+            imageData,
+            thresholdValue,
+            blurAmount,
+            noiseReduction
+          );
+
+          // Display processed image
+          processedCtx.putImageData(processedImageData, 0, 0);
+
+          addDebugInfo("Image preprocessing complete");
+
+          // Extract the path
+          extractPath();
+
+          isProcessing = false;
+          loadingOverlay.style.display = "none";
+        }, 100);
+      }
+
+      // Process image data
+      function processImageData(imageData, threshold, blurRadius, noiseLevel) {
+        const width = imageData.width;
+        const height = imageData.height;
+        const data = new Uint8ClampedArray(imageData.data);
+        const result = new Uint8ClampedArray(width * height * 4);
+
+        // Convert to grayscale with better weighting for line art
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          // Weighted grayscale conversion that's better for line art
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+          data[i] = data[i + 1] = data[i + 2] = gray;
+        }
+
+        // Apply Gaussian blur if blur radius > 0
+        let processedData = data;
+        if (blurRadius > 0) {
+          processedData = applyGaussianBlur(data, width, height, blurRadius);
+        }
+
+        // Calculate adaptive threshold if needed (helps with varying backgrounds)
+        let effectiveThreshold = threshold;
+        if (threshold < 10) {
+          // If threshold is very low, use adaptive thresholding
+          effectiveThreshold = calculateAdaptiveThreshold(
+            processedData,
+            width,
+            height
+          );
+          addDebugInfo(`Using adaptive threshold: ${effectiveThreshold}`);
+        }
+
+        // Apply thresholding (binary image)
+        for (let i = 0; i < processedData.length; i += 4) {
+          const value = processedData[i] < effectiveThreshold ? 0 : 255;
+          result[i] = result[i + 1] = result[i + 2] = value;
+          result[i + 3] = 255; // Alpha channel
+        }
+
+        // Apply noise reduction if noise level > 0
+        if (noiseLevel > 0) {
+          applyNoiseReduction(result, width, height, noiseLevel);
+        }
+
+        return new ImageData(result, width, height);
+      }
+
+      // Apply morphological operations (dilation/erosion)
+      function applyMorphologicalOp(
+        data,
+        width,
+        height,
+        operation,
+        iterations
+      ) {
+        const result = new Uint8ClampedArray(data.length);
+        let sourceData = data;
+
+        for (let iter = 0; iter < iterations; iter++) {
+          // Create a temporary buffer for the operation result
+          const tempResult = new Uint8ClampedArray(data.length);
+
+          // Copy the data
+          for (let i = 0; i < sourceData.length; i++) {
+            tempResult[i] = sourceData[i];
+          }
+
+          for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+              const idx = (y * width + x) * 4;
+
+              if (operation === "dilate") {
+                // Dilation: If any neighbor is black (0), make this pixel black
+                let anyBlack = false;
+
+                for (let ky = -1; ky <= 1; ky++) {
+                  for (let kx = -1; kx <= 1; kx++) {
+                    const neighborIdx = ((y + ky) * width + (x + kx)) * 4;
+                    if (sourceData[neighborIdx] === 0) {
+                      anyBlack = true;
+                      break;
+                    }
+                  }
+                  if (anyBlack) break;
+                }
+
+                if (anyBlack) {
+                  tempResult[idx] =
+                    tempResult[idx + 1] =
+                    tempResult[idx + 2] =
+                      0;
+                }
+              } else if (operation === "erode") {
+                // Erosion: If any neighbor is white (255), make this pixel white
+                let anyWhite = false;
+
+                for (let ky = -1; ky <= 1; ky++) {
+                  for (let kx = -1; kx <= 1; kx++) {
+                    const neighborIdx = ((y + ky) * width + (x + kx)) * 4;
+                    if (sourceData[neighborIdx] === 255) {
+                      anyWhite = true;
+                      break;
+                    }
+                  }
+                  if (anyWhite) break;
+                }
+
+                if (anyWhite) {
+                  tempResult[idx] =
+                    tempResult[idx + 1] =
+                    tempResult[idx + 2] =
+                      255;
+                }
+              }
+            }
+          }
+
+          // Update source data for next iteration
+          sourceData = tempResult;
+        }
+
+        // Copy final result
+        for (let i = 0; i < sourceData.length; i++) {
+          result[i] = sourceData[i];
+        }
+
+        return result;
+      }
+
+      // Calculate adaptive threshold based on image content
+      function calculateAdaptiveThreshold(data, width, height) {
+        // Simple histogram-based threshold calculation
+        const histogram = new Array(256).fill(0);
+
+        // Build histogram of grayscale values
+        for (let i = 0; i < data.length; i += 4) {
+          histogram[data[i]]++;
+        }
+
+        // Find the valley between two peaks (background and foreground)
+        let threshold = 128; // Default value
+
+        // Simple method: find the threshold that separates the darkest 15% from the rest
+        // This works well for drawings with thin lines on light backgrounds
+        let sum = 0;
+        const targetPercentage = 0.15;
+        const targetCount = Math.floor(width * height * targetPercentage);
+
+        for (let i = 0; i < 256; i++) {
+          sum += histogram[i];
+          if (sum > targetCount) {
+            threshold = i;
+            break;
+          }
+        }
+
+        return threshold;
+      }
+
+      // Apply Gaussian blur
+      function applyGaussianBlur(data, width, height, radius) {
+        // Simple box blur approximation for demo
+        const result = new Uint8ClampedArray(data.length);
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let r = 0,
+              g = 0,
+              b = 0,
+              count = 0;
+
+            for (let ky = -radius; ky <= radius; ky++) {
+              for (let kx = -radius; kx <= radius; kx++) {
+                const px = x + kx;
+                const py = y + ky;
+
+                if (px >= 0 && px < width && py >= 0 && py < height) {
+                  const i = (py * width + px) * 4;
+                  r += data[i];
+                  g += data[i + 1];
+                  b += data[i + 2];
+                  count++;
+                }
+              }
+            }
+
+            const i = (y * width + x) * 4;
+            result[i] = r / count;
+            result[i + 1] = g / count;
+            result[i + 2] = b / count;
+            result[i + 3] = 255;
+          }
+        }
+
+        return result;
+      }
+
+      // Apply noise reduction
+      function applyNoiseReduction(data, width, height, level) {
+        // Simple morphological operations for noise reduction
+        for (let i = 0; i < level; i++) {
+          // Erosion (remove small white spots)
+          const temp = new Uint8ClampedArray(data.length);
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const idx = (y * width + x) * 4;
+              let isWhite = true;
+
+              for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                  const px = x + kx;
+                  const py = y + ky;
+
+                  if (px >= 0 && px < width && py >= 0 && py < height) {
+                    const neighborIdx = (py * width + px) * 4;
+                    if (data[neighborIdx] === 0) {
+                      isWhite = false;
+                      break;
+                    }
+                  }
+                }
+                if (!isWhite) break;
+              }
+
+              temp[idx] = temp[idx + 1] = temp[idx + 2] = isWhite ? 255 : 0;
+              temp[idx + 3] = 255;
+            }
+          }
+
+          // Update data with eroded image
+          for (let j = 0; j < data.length; j++) {
+            data[j] = temp[j];
+          }
+        }
+      }
+
+      // Extract path from processed image
+      function extractPath() {
+        if (!processedImageData) return;
+
+        // Get path parameters
+        const strokeWidth = parseInt(
+          document.getElementById("strokeWidth").value
+        );
+        const smoothing = parseInt(
+          document.getElementById("pathSmoothing").value
+        );
+        const gapFilling = parseInt(
+          document.getElementById("gapFilling").value
+        );
+
+        addDebugInfo(
+          `Extracting path with stroke width=${strokeWidth}, smoothing=${smoothing}, gap filling=${gapFilling}`
+        );
+
+        // Clear path canvas
+        pathCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+
+        // First, thin the image to get a skeleton representation
+        const width = processedImageData.width;
+        const height = processedImageData.height;
+        const imageData = new Uint8ClampedArray(processedImageData.data);
+
+        // Apply proper skeletonization algorithm
+        const skeletonData = skeletonize(imageData, width, height);
+
+        // Visualize the skeleton on the processed canvas for debugging
+        const skeletonImage = new ImageData(skeletonData, width, height);
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tempCtx = tempCanvas.getContext("2d");
+        tempCtx.putImageData(skeletonImage, 0, 0);
+
+        // Draw a semi-transparent version of the skeleton over the processed image
+        processedCtx.drawImage(tempCanvas, 0, 0);
+
+        // Find points along the path
+        pathPoints = findPathPoints(skeletonData, width, height, gapFilling);
+
+        // Apply smoothing
+        if (smoothing > 0) {
+          pathPoints = smoothPath(pathPoints, smoothing);
+        }
+
+        // Sort points from left to right if needed
+        if (pathPoints.length > 0) {
+          // First, identify the endpoints by finding pixels with only one neighbor
+          const endpoints = findEndpoints(skeletonData, width, height);
+
+          if (endpoints.length >= 2) {
+            // Find leftmost and rightmost endpoints
+            endpoints.sort((a, b) => a.x - b.x);
+            const leftmostPoint = endpoints[0];
+            const rightmostPoint = endpoints[endpoints.length - 1];
+
+            addDebugInfo(
+              `Found endpoints: leftmost at (${leftmostPoint.x}, ${leftmostPoint.y}), rightmost at (${rightmostPoint.x}, ${rightmostPoint.y})`
+            );
+
+            // Check if we need to reverse the path to follow left-to-right rule
+            const distanceToStart = Math.sqrt(
+              Math.pow(pathPoints[0].x - leftmostPoint.x, 2) +
+                Math.pow(pathPoints[0].y - leftmostPoint.y, 2)
+            );
+
+            const distanceToEnd = Math.sqrt(
+              Math.pow(
+                pathPoints[pathPoints.length - 1].x - leftmostPoint.x,
+                2
+              ) +
+                Math.pow(
+                  pathPoints[pathPoints.length - 1].y - leftmostPoint.y,
+                  2
+                )
+            );
+
+            if (distanceToStart > distanceToEnd) {
+              pathPoints.reverse();
+              addDebugInfo("Path reversed to follow left-to-right rule");
+            }
+          } else {
+            // If no clear endpoints, use simple left-to-right check
+            const startPoint = pathPoints[0];
+            const endPoint = pathPoints[pathPoints.length - 1];
+
+            if (startPoint.x > endPoint.x) {
+              pathPoints.reverse();
+              addDebugInfo(
+                "Path reversed to follow left-to-right rule (based on start/end points)"
+              );
+            }
+          }
+        }
+
+        // Draw the path
+        if (pathPoints.length > 0) {
+          pathCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+
+          // Draw the skeleton lightly in the background for reference
+          pathCtx.globalAlpha = 0.2;
+          pathCtx.drawImage(tempCanvas, 0, 0);
+          pathCtx.globalAlpha = 1.0;
+
+          // Draw the extracted path
+          pathCtx.strokeStyle = "#4CAF50";
+          pathCtx.lineWidth = strokeWidth;
+          pathCtx.lineCap = "round";
+          pathCtx.lineJoin = "round";
+
+          pathCtx.beginPath();
+          pathCtx.moveTo(pathPoints[0].x, pathPoints[0].y);
+
+          for (let i = 1; i < pathPoints.length; i++) {
+            pathCtx.lineTo(pathPoints[i].x, pathPoints[i].y);
+          }
+
+          pathCtx.stroke();
+
+          // Mark start and end points
+          pathCtx.fillStyle = "#FF0000";
+          pathCtx.beginPath();
+          pathCtx.arc(pathPoints[0].x, pathPoints[0].y, 5, 0, Math.PI * 2);
+          pathCtx.fill();
+
+          pathCtx.fillStyle = "#0000FF";
+          pathCtx.beginPath();
+          pathCtx.arc(
+            pathPoints[pathPoints.length - 1].x,
+            pathPoints[pathPoints.length - 1].y,
+            5,
+            0,
+            Math.PI * 2
+          );
+          pathCtx.fill();
+
+          addDebugInfo(
+            `Path extracted: ${pathPoints.length} points from (${
+              pathPoints[0].x
+            }, ${pathPoints[0].y}) to (${
+              pathPoints[pathPoints.length - 1].x
+            }, ${pathPoints[pathPoints.length - 1].y})`
+          );
+
+          // Sample points for animation
+          samplePathPoints();
+
+          // Update output
+          updateCoordinatesOutput();
+
+          // Enable animation buttons
+          animateButton.disabled = false;
+          resetAnimationButton.disabled = false;
+          copyDataButton.disabled = false;
+          downloadSvgButton.disabled = false;
+        } else {
+          addDebugInfo("No path found in the image");
+        }
+      }
+
+      // Find endpoints in the skeleton (pixels with only one neighbor)
+      function findEndpoints(data, width, height) {
+        const endpoints = [];
+
+        for (let y = 1; y < height - 1; y++) {
+          for (let x = 1; x < width - 1; x++) {
+            const idx = (y * width + x) * 4;
+
+            // If this is a black pixel (part of the skeleton)
+            if (data[idx] === 0) {
+              // Count black neighbors
+              let blackNeighbors = 0;
+
+              for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                  if (kx === 0 && ky === 0) continue;
+
+                  const px = x + kx;
+                  const py = y + ky;
+
+                  if (px >= 0 && px < width && py >= 0 && py < height) {
+                    const neighborIdx = (py * width + px) * 4;
+                    if (data[neighborIdx] === 0) {
+                      blackNeighbors++;
+                    }
+                  }
+                }
+              }
+
+              // If it has exactly one neighbor, it's an endpoint
+              if (blackNeighbors === 1) {
+                endpoints.push({ x, y });
+              }
+            }
+          }
+        }
+
+        return endpoints;
+      }
+
+      // Proper Zhang-Suen thinning algorithm for skeletonization
+      // Modified to preserve connectivity at intersections
+      function skeletonize(data, width, height) {
+        // Create a binary 2D array (1 = black, 0 = white)
+        const binary = [];
+        for (let y = 0; y < height; y++) {
+          binary.push([]);
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            binary[y][x] = data[idx] === 0 ? 1 : 0;
+          }
+        }
+
+        // Perform Zhang-Suen thinning algorithm
+        let hasChanged = true;
+        let iterations = 0;
+        while (hasChanged && iterations < 100) {
+          iterations++;
+          hasChanged = false;
+
+          // First sub-iteration
+          const toWhite1 = [];
+          for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+              if (binary[y][x] === 1) {
+                const p2 = binary[y - 1][x];
+                const p3 = binary[y - 1][x + 1];
+                const p4 = binary[y][x + 1];
+                const p5 = binary[y + 1][x + 1];
+                const p6 = binary[y + 1][x];
+                const p7 = binary[y + 1][x - 1];
+                const p8 = binary[y][x - 1];
+                const p9 = binary[y - 1][x - 1];
+
+                const neighbors = [p2, p3, p4, p5, p6, p7, p8, p9];
+
+                // A: Number of transitions from 0 to 1 in P2,P3,...,P9,P2
+                let transitions = 0;
+                for (let i = 0; i < neighbors.length; i++) {
+                  if (neighbors[i] === 0 && neighbors[(i + 1) % 8] === 1) {
+                    transitions++;
+                  }
+                }
+
+                // B: Number of black neighbors
+                const blackNeighbors = neighbors.filter((n) => n === 1).length;
+
+                // Conditions for deletion (original Zhang-Suen conditions)
+                const condition1 = blackNeighbors >= 2 && blackNeighbors <= 6;
+                const condition2 = transitions === 1;
+                const condition3 = p2 * p4 * p6 === 0;
+                const condition4 = p4 * p6 * p8 === 0;
+
+                if (condition1 && condition2 && condition3 && condition4) {
+                  toWhite1.push({ y, x });
+                }
+              }
+            }
+          }
+
+          // Apply first sub-iteration changes
+          if (toWhite1.length > 0) hasChanged = true;
+          for (const { y, x } of toWhite1) {
+            binary[y][x] = 0;
+          }
+
+          // Second sub-iteration
+          const toWhite2 = [];
+          for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+              if (binary[y][x] === 1) {
+                const p2 = binary[y - 1][x];
+                const p3 = binary[y - 1][x + 1];
+                const p4 = binary[y][x + 1];
+                const p5 = binary[y + 1][x + 1];
+                const p6 = binary[y + 1][x];
+                const p7 = binary[y + 1][x - 1];
+                const p8 = binary[y][x - 1];
+                const p9 = binary[y - 1][x - 1];
+
+                const neighbors = [p2, p3, p4, p5, p6, p7, p8, p9];
+
+                // A: Number of transitions from 0 to 1 in P2,P3,...,P9,P2
+                let transitions = 0;
+                for (let i = 0; i < neighbors.length; i++) {
+                  if (neighbors[i] === 0 && neighbors[(i + 1) % 8] === 1) {
+                    transitions++;
+                  }
+                }
+
+                // B: Number of black neighbors
+                const blackNeighbors = neighbors.filter((n) => n === 1).length;
+
+                // Conditions for deletion (slightly different from first sub-iteration)
+                const condition1 = blackNeighbors >= 2 && blackNeighbors <= 6;
+                const condition2 = transitions === 1;
+                const condition3 = p2 * p4 * p8 === 0;
+                const condition4 = p2 * p6 * p8 === 0;
+
+                if (condition1 && condition2 && condition3 && condition4) {
+                  toWhite2.push({ y, x });
+                }
+              }
+            }
+          }
+
+          // Apply second sub-iteration changes
+          if (toWhite2.length > 0) hasChanged = true;
+          for (const { y, x } of toWhite2) {
+            binary[y][x] = 0;
+          }
+        }
+
+        addDebugInfo(`Skeletonization completed in ${iterations} iterations`);
+
+        // Convert binary array back to ImageData format
+        const result = new Uint8ClampedArray(data.length);
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const color = binary[y][x] === 1 ? 0 : 255;
+            result[idx] = result[idx + 1] = result[idx + 2] = color;
+            result[idx + 3] = 255;
+          }
+        }
+
+        return result;
+      }
+
+      // Find path points from skeleton
+      function findPathPoints(data, width, height, gapThreshold) {
+        // Find all black pixels
+        const blackPixels = [];
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            if (data[idx] === 0) {
+              blackPixels.push({ x, y });
+            }
+          }
+        }
+
+        if (blackPixels.length === 0) {
+          return [];
+        }
+
+        // First, identify junctions (pixels with more than 2 neighbors)
+        const junctions = [];
+        const endpoints = [];
+
+        for (const pixel of blackPixels) {
+          let neighborCount = 0;
+          const neighbors = [];
+
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              if (kx === 0 && ky === 0) continue;
+
+              const nx = pixel.x + kx;
+              const ny = pixel.y + ky;
+
+              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                const idx = (ny * width + nx) * 4;
+                if (data[idx] === 0) {
+                  neighborCount++;
+                  neighbors.push({ x: nx, y: ny });
+                }
+              }
+            }
+          }
+
+          if (neighborCount > 2) {
+            junctions.push({ x: pixel.x, y: pixel.y, neighbors });
+          } else if (neighborCount === 1) {
+            endpoints.push({ x: pixel.x, y: pixel.y, neighbors });
+          }
+        }
+
+        addDebugInfo(
+          `Found ${junctions.length} junctions and ${endpoints.length} endpoints in the skeleton`
+        );
+
+        // If we have endpoints, let's try to find the longest path between any two endpoints
+        let longestPath = [];
+
+        if (endpoints.length >= 2) {
+          // Consider all possible pairs of endpoints
+          for (let i = 0; i < endpoints.length; i++) {
+            for (let j = i + 1; j < endpoints.length; j++) {
+              const path = findBestPath(
+                endpoints[i],
+                endpoints[j],
+                data,
+                width,
+                height,
+                blackPixels,
+                gapThreshold
+              );
+
+              if (path.length > longestPath.length) {
+                longestPath = path;
+                addDebugInfo(
+                  `Found better path with ${path.length} points from (${endpoints[i].x},${endpoints[i].y}) to (${endpoints[j].x},${endpoints[j].y})`
+                );
+              }
+            }
+          }
+        }
+
+        // If we couldn't find a good path between endpoints, try alternative methods
+        if (longestPath.length < blackPixels.length * 0.5) {
+          // Try to find a path that covers most pixels by considering the leftmost point
+          // as the start point and try to find a path to each endpoint
+
+          // Find leftmost pixel
+          blackPixels.sort((a, b) => a.x - b.x);
+          const leftmostPoint = blackPixels[0];
+
+          for (const endpoint of endpoints) {
+            const path = findBestPath(
+              leftmostPoint,
+              endpoint,
+              data,
+              width,
+              height,
+              blackPixels,
+              gapThreshold
+            );
+
+            if (path.length > longestPath.length) {
+              longestPath = path;
+              addDebugInfo(
+                `Found better path from leftmost (${leftmostPoint.x},${leftmostPoint.y}) to endpoint (${endpoint.x},${endpoint.y}): ${path.length} points`
+              );
+            }
+          }
+        }
+
+        // If we still don't have a good path, try the brute force approach
+        if (longestPath.length < blackPixels.length * 0.5) {
+          // Just try to build a connected path through all pixels
+          longestPath = buildConnectedPath(
+            data,
+            width,
+            height,
+            blackPixels,
+            gapThreshold
+          );
+          addDebugInfo(
+            `Used fallback connected path: ${longestPath.length} points (${(
+              (longestPath.length / blackPixels.length) *
+              100
+            ).toFixed(1)}% coverage)`
+          );
+        }
+
+        // Last resort: if we have no good path, just sort points from left to right
+        if (longestPath.length < blackPixels.length * 0.3) {
+          addDebugInfo(
+            `WARNING: Could not find a good connected path. Using simple left-to-right sorting.`
+          );
+          longestPath = blackPixels.sort((a, b) => {
+            if (a.x !== b.x) return a.x - b.x;
+            return a.y - b.y;
+          });
+        }
+
+        return longestPath;
+      }
+
+      // Find the best path between two points using A* and connection repair
+      function findBestPath(
+        start,
+        end,
+        data,
+        width,
+        height,
+        blackPixels,
+        gapThreshold
+      ) {
+        // Priority queue for A* search
+        const openSet = [
+          {
+            point: start,
+            priority: 0,
+            cost: 0,
+          },
+        ];
+
+        const closedSet = new Set();
+        const cameFrom = new Map();
+        const costSoFar = new Map();
+
+        costSoFar.set(`${start.x},${start.y}`, 0);
+
+        // Helper function to calculate heuristic (distance to goal)
+        function heuristic(a, b) {
+          return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+        }
+
+        // Helper to get key from point
+        function getKey(point) {
+          return `${point.x},${point.y}`;
+        }
+
+        // Helper to get valid neighbors
+        function getNeighbors(point) {
+          const neighbors = [];
+
+          // First, try immediate 8-connected neighbors (better connectivity)
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              if (kx === 0 && ky === 0) continue;
+
+              const nx = point.x + kx;
+              const ny = point.y + ky;
+
+              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                const idx = (ny * width + nx) * 4;
+                if (data[idx] === 0) {
+                  const key = `${nx},${ny}`;
+                  if (!closedSet.has(key)) {
+                    neighbors.push({ x: nx, y: ny });
+                  }
+                }
+              }
+            }
+          }
+
+          // If no direct neighbors, look for nearby pixels within gap threshold
+          if (neighbors.length === 0) {
+            for (const pixel of blackPixels) {
+              const key = `${pixel.x},${pixel.y}`;
+              if (!closedSet.has(key)) {
+                const distance = heuristic(point, pixel);
+                if (distance <= gapThreshold) {
+                  neighbors.push(pixel);
+                }
+              }
+            }
+          }
+
+          return neighbors;
+        }
+
+        // A* search
+        while (openSet.length > 0) {
+          // Sort by priority and get the best candidate
+          openSet.sort((a, b) => a.priority - b.priority);
+          const current = openSet.shift();
+          const currentKey = getKey(current.point);
+
+          // If we reached the goal, reconstruct the path
+          if (current.point.x === end.x && current.point.y === end.y) {
+            const path = [];
+            let currentPoint = current.point;
+
+            path.push(currentPoint);
+            while (cameFrom.has(getKey(currentPoint))) {
+              // Get the previous point
+              currentPoint = cameFrom.get(getKey(currentPoint));
+
+              // If we have a gap, interpolate points
+              const lastPoint = path[0];
+              const distance = heuristic(currentPoint, lastPoint);
+
+              if (distance > 2) {
+                // Add intermediate points
+                const steps = Math.floor(distance);
+                const interpPoints = [];
+
+                for (let i = 1; i < steps; i++) {
+                  const ratio = i / steps;
+                  const interpX = Math.round(
+                    lastPoint.x + ratio * (currentPoint.x - lastPoint.x)
+                  );
+                  const interpY = Math.round(
+                    lastPoint.y + ratio * (currentPoint.y - lastPoint.y)
+                  );
+                  interpPoints.push({ x: interpX, y: interpY });
+                }
+
+                // Add interpolated points in reverse order (since we're building the path backwards)
+                for (let i = interpPoints.length - 1; i >= 0; i--) {
+                  path.unshift(interpPoints[i]);
+                }
+              }
+
+              path.unshift(currentPoint);
+            }
+
+            return path;
+          }
+
+          // Mark current as processed
+          closedSet.add(currentKey);
+
+          // Process neighbors
+          const neighbors = getNeighbors(current.point);
+          for (const neighbor of neighbors) {
+            const neighborKey = getKey(neighbor);
+
+            // Calculate tentative cost
+            const distance = heuristic(current.point, neighbor);
+            const newCost = costSoFar.get(currentKey) + distance;
+
+            // If this is a better path to the neighbor
+            if (
+              !costSoFar.has(neighborKey) ||
+              newCost < costSoFar.get(neighborKey)
+            ) {
+              costSoFar.set(neighborKey, newCost);
+
+              // Priority is cost + heuristic
+              const priority = newCost + heuristic(neighbor, end);
+
+              // Add to open set
+              openSet.push({
+                point: neighbor,
+                priority: priority,
+                cost: newCost,
+              });
+
+              // Remember where we came from
+              cameFrom.set(neighborKey, current.point);
+            }
+          }
+        }
+
+        // If we couldn't find a path, return empty array
+        return [];
+      }
+
+      // Fallback method to build a connected path through all pixels
+      function buildConnectedPath(
+        data,
+        width,
+        height,
+        blackPixels,
+        gapThreshold
+      ) {
+        // Start from the leftmost pixel
+        blackPixels.sort((a, b) => a.x - b.x);
+        let currentPoint = blackPixels[0];
+
+        const path = [currentPoint];
+        const visited = new Set([`${currentPoint.x},${currentPoint.y}`]);
+
+        // Greedy algorithm to build a path through as many pixels as possible
+        while (true) {
+          // Find the closest unvisited pixel within reach
+          let closestPoint = null;
+          let minDistance = Infinity;
+
+          for (const pixel of blackPixels) {
+            const key = `${pixel.x},${pixel.y}`;
+            if (!visited.has(key)) {
+              const distance = Math.sqrt(
+                Math.pow(pixel.x - currentPoint.x, 2) +
+                  Math.pow(pixel.y - currentPoint.y, 2)
+              );
+
+              // Prefer connected neighbors (distance = 1 or sqrt(2))
+              // or pixels within the gap threshold
+              if (distance <= gapThreshold && distance < minDistance) {
+                minDistance = distance;
+                closestPoint = pixel;
+              }
+            }
+          }
+
+          if (closestPoint) {
+            // If there's a gap, add intermediate points
+            if (minDistance > 2) {
+              const steps = Math.floor(minDistance);
+              for (let i = 1; i < steps; i++) {
+                const ratio = i / steps;
+                const interpX = Math.round(
+                  currentPoint.x + ratio * (closestPoint.x - currentPoint.x)
+                );
+                const interpY = Math.round(
+                  currentPoint.y + ratio * (closestPoint.y - currentPoint.y)
+                );
+                path.push({ x: interpX, y: interpY });
+              }
+            }
+
+            path.push(closestPoint);
+            visited.add(`${closestPoint.x},${closestPoint.y}`);
+            currentPoint = closestPoint;
+          } else {
+            // No more reachable pixels
+            break;
+          }
+        }
+
+        return path;
+      }
+
+      // Smooth the path using a more advanced smoothing algorithm
+      function smoothPath(points, smoothingFactor) {
+        if (points.length <= 2 || smoothingFactor <= 0) {
+          return points;
+        }
+
+        // Chaikin's algorithm for curve smoothing
+        // This creates a smoother path by cutting corners
+        const smoothed = [];
+
+        if (smoothingFactor > 0) {
+          // Apply Chaikin's algorithm multiple times based on smoothing factor
+          let workingPoints = [...points];
+
+          for (let iteration = 0; iteration < smoothingFactor; iteration++) {
+            const result = [];
+
+            // Always include the first point
+            result.push(workingPoints[0]);
+
+            // Apply corner cutting to interior points
+            for (let i = 0; i < workingPoints.length - 1; i++) {
+              const p0 = workingPoints[i];
+              const p1 = workingPoints[i + 1];
+
+              // Cut corner: 3/4 of first point + 1/4 of second point
+              const q = {
+                x: Math.round(0.75 * p0.x + 0.25 * p1.x),
+                y: Math.round(0.75 * p0.y + 0.25 * p1.y),
+              };
+
+              // Cut corner: 1/4 of first point + 3/4 of second point
+              const r = {
+                x: Math.round(0.25 * p0.x + 0.75 * p1.x),
+                y: Math.round(0.25 * p0.y + 0.75 * p1.y),
+              };
+
+              result.push(q);
+              result.push(r);
+            }
+
+            // Always include the last point
+            result.push(workingPoints[workingPoints.length - 1]);
+
+            workingPoints = result;
+          }
+
+          return workingPoints;
+        }
+
+        // If we didn't apply Chaikin's algorithm, fall back to simple moving average
+        const windowSize = Math.min(5, Math.floor(points.length / 3));
+
+        for (let i = 0; i < points.length; i++) {
+          let sumX = 0;
+          let sumY = 0;
+          let count = 0;
+
+          for (
+            let j = Math.max(0, i - windowSize);
+            j <= Math.min(points.length - 1, i + windowSize);
+            j++
+          ) {
+            // Weight points based on distance from center
+            const weight = 1 - Math.abs(i - j) / (windowSize + 1);
+            sumX += points[j].x * weight;
+            sumY += points[j].y * weight;
+            count += weight;
+          }
+
+          smoothed.push({
+            x: Math.round(sumX / count),
+            y: Math.round(sumY / count),
+          });
+        }
+
+        return smoothed;
+      }
+
+      // Sample points for animation
+      function samplePathPoints() {
+        if (pathPoints.length < 2) return;
+
+        // Get animation parameters
+        const drawDuration = parseFloat(
+          document.getElementById("drawDuration").value
+        );
+        const curvatureEffect =
+          parseFloat(document.getElementById("curvatureEffect").value) / 10;
+
+        // Calculate total path length
+        let totalLength = 0;
+        for (let i = 1; i < pathPoints.length; i++) {
+          totalLength += Math.sqrt(
+            Math.pow(pathPoints[i].x - pathPoints[i - 1].x, 2) +
+              Math.pow(pathPoints[i].y - pathPoints[i - 1].y, 2)
+          );
+        }
+
+        // Calculate curvature for each point
+        const curvatures = calculatePathCurvature(pathPoints);
+
+        // Calculate target number of frames
+        const framesPerSecond = 60;
+        const totalFrames = Math.floor(drawDuration * framesPerSecond);
+
+        // Sample points
+        sampledPoints = [];
+        let currentDistance = 0;
+        let currentIndex = 0;
+
+        for (let frame = 0; frame < totalFrames; frame++) {
+          // Calculate target distance based on time and curvature
+          const targetFraction = frame / (totalFrames - 1);
+          const targetDistance = totalLength * targetFraction;
+
+          // Find the point at the target distance
+          while (currentIndex < pathPoints.length - 1) {
+            const segmentLength = Math.sqrt(
+              Math.pow(
+                pathPoints[currentIndex + 1].x - pathPoints[currentIndex].x,
+                2
+              ) +
+                Math.pow(
+                  pathPoints[currentIndex + 1].y - pathPoints[currentIndex].y,
+                  2
+                )
+            );
+
+            if (currentDistance + segmentLength >= targetDistance) {
+              // Interpolate between current and next point
+              const remainingDistance = targetDistance - currentDistance;
+              const fraction = remainingDistance / segmentLength;
+
+              const x =
+                pathPoints[currentIndex].x +
+                fraction *
+                  (pathPoints[currentIndex + 1].x - pathPoints[currentIndex].x);
+              const y =
+                pathPoints[currentIndex].y +
+                fraction *
+                  (pathPoints[currentIndex + 1].y - pathPoints[currentIndex].y);
+
+              sampledPoints.push({ x, y, curvature: curvatures[currentIndex] });
+              break;
+            }
+
+            currentDistance += segmentLength;
+            currentIndex++;
+          }
+
+          // If we reached the end, add the last point
+          if (currentIndex >= pathPoints.length - 1) {
+            sampledPoints.push({
+              x: pathPoints[pathPoints.length - 1].x,
+              y: pathPoints[pathPoints.length - 1].y,
+              curvature: curvatures[pathPoints.length - 1],
+            });
+            break;
+          }
+        }
+
+        addDebugInfo(`Sampled ${sampledPoints.length} points for animation`);
+      }
+
+      // Calculate curvature for each point in the path
+      function calculatePathCurvature(points) {
+        const curvatures = new Array(points.length).fill(0);
+
+        if (points.length < 3) {
+          return curvatures;
+        }
+
+        // Calculate curvature for interior points
+        for (let i = 1; i < points.length - 1; i++) {
+          const prev = points[i - 1];
+          const current = points[i];
+          const next = points[i + 1];
+
+          // Calculate vectors
+          const v1 = { x: current.x - prev.x, y: current.y - prev.y };
+          const v2 = { x: next.x - current.x, y: next.y - current.y };
+
+          // Normalize vectors
+          const len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+          const len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+          if (len1 > 0 && len2 > 0) {
+            const nv1 = { x: v1.x / len1, y: v1.y / len1 };
+            const nv2 = { x: v2.x / len2, y: v2.y / len2 };
+
+            // Calculate dot product to get the angle
+            const dotProduct = nv1.x * nv2.x + nv1.y * nv2.y;
+            const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+
+            curvatures[i] = angle / Math.PI; // Normalize to 0-1 range
+          }
+        }
+
+        return curvatures;
+      }
+
+      // Start animation
+      function startAnimation() {
+        if (sampledPoints.length === 0) return;
+
+        resetAnimation();
+
+        // Get animation parameters
+        const drawDuration = parseFloat(
+          document.getElementById("drawDuration").value
+        );
+        const curvatureEffect =
+          parseFloat(document.getElementById("curvatureEffect").value) / 10;
+
+        // Draw the animation frame by frame
+        let currentFrame = 0;
+        let lastTimestamp = 0;
+
+        function drawFrame(timestamp) {
+          if (!lastTimestamp) lastTimestamp = timestamp;
+
+          const elapsed = timestamp - lastTimestamp;
+          const frameTime = (drawDuration * 1000) / sampledPoints.length;
+
+          if (elapsed >= frameTime) {
+            // Update frame
+            currentFrame++;
+            lastTimestamp = timestamp;
+
+            // Clear canvas
+            animationCtx.clearRect(
+              0,
+              0,
+              animationCanvas.width,
+              animationCanvas.height
+            );
+
+            // Draw path up to current frame
+            if (currentFrame > 0) {
+              animationCtx.strokeStyle = "#4CAF50";
+              animationCtx.lineWidth = 2;
+              animationCtx.lineCap = "round";
+              animationCtx.lineJoin = "round";
+
+              animationCtx.beginPath();
+              animationCtx.moveTo(sampledPoints[0].x, sampledPoints[0].y);
+
+              for (
+                let i = 1;
+                i <= Math.min(currentFrame, sampledPoints.length - 1);
+                i++
+              ) {
+                animationCtx.lineTo(sampledPoints[i].x, sampledPoints[i].y);
+              }
+
+              animationCtx.stroke();
+
+              // Draw current point
+              if (currentFrame < sampledPoints.length) {
+                animationCtx.fillStyle = "#FF0000";
+                animationCtx.beginPath();
+                animationCtx.arc(
+                  sampledPoints[currentFrame].x,
+                  sampledPoints[currentFrame].y,
+                  3,
+                  0,
+                  Math.PI * 2
+                );
+                animationCtx.fill();
+              }
+            }
+          }
+
+          // Continue the animation if not done
+          if (currentFrame < sampledPoints.length) {
+            animationFrameId = requestAnimationFrame(drawFrame);
+          }
+        }
+
+        animationFrameId = requestAnimationFrame(drawFrame);
+      }
+
+      // Reset animation
+      function resetAnimation() {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+        }
+
+        animationCtx.clearRect(
+          0,
+          0,
+          animationCanvas.width,
+          animationCanvas.height
+        );
+      }
+
+      // Add debug information
+      function addDebugInfo(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        const entry = document.createElement("div");
+        entry.innerHTML = `<strong>${timestamp}</strong>: ${message}`;
+
+        debugInfo.insertBefore(entry, debugInfo.firstChild);
+
+        // Limit the number of debug entries
+        while (debugInfo.children.length > 20) {
+          debugInfo.removeChild(debugInfo.lastChild);
+        }
+      }
+
+      // Update coordinates output
+      function updateCoordinatesOutput() {
+        if (sampledPoints.length === 0) return;
+
+        const coordinates = sampledPoints.map((point, index) => {
+          return {
+            index,
+            x: Math.round(point.x),
+            y: Math.round(point.y),
+            curvature: point.curvature ? point.curvature.toFixed(2) : 0,
+          };
+        });
+
+        coordinatesOutput.textContent = JSON.stringify(coordinates, null, 2);
+      }
+
+      // Copy coordinates to clipboard
+      function copyCoordinates() {
+        if (sampledPoints.length === 0) return;
+
+        const coordinates = sampledPoints.map((point) => {
+          return { x: Math.round(point.x), y: Math.round(point.y) };
+        });
+
+        navigator.clipboard
+          .writeText(JSON.stringify(coordinates))
+          .then(() => {
+            addDebugInfo("Coordinates copied to clipboard");
+          })
+          .catch((err) => {
+            addDebugInfo(`Error copying coordinates: ${err}`);
+          });
+      }
+
+      // Download as SVG
+      function downloadSvg() {
+        if (pathPoints.length === 0) return;
+
+        // Create SVG path
+        let pathData = `M ${pathPoints[0].x} ${pathPoints[0].y}`;
+        for (let i = 1; i < pathPoints.length; i++) {
+          pathData += ` L ${pathPoints[i].x} ${pathPoints[i].y}`;
+        }
+
+        // Create SVG document
+        const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+      <svg width="${pathCanvas.width}" height="${pathCanvas.height}" xmlns="http://www.w3.org/2000/svg">
+        <path d="${pathData}" fill="none" stroke="black" stroke-width="2"/>
+      </svg>`;
+
+        // Create download link
+        const blob = new Blob([svg], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "path.svg";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        addDebugInfo("SVG downloaded");
+      }
     </script>
   </body>
 </html>
